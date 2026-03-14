@@ -1,6 +1,5 @@
 #@BEGIN-C_SRC-DEFAULT-RULES@
-ERL=$(shell readlink -f `which erl`)
-ERL_TOP=$(ERL:%/bin/erl=%)
+ERL_TOP=$(shell erl -noshell -eval 'io:format("~s", [code:root_dir()])' -s init stop)
 OS=$(shell uname -s)
 CFLAGS=-MMD -MP -MF .$<.d -I$(ERL_TOP)/usr/include
 #@END-C_SRC-DEFAULT-RULES@
