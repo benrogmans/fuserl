@@ -1,0 +1,14 @@
+# rebar3 build artifacts
+_build/
+rebar.lock
+rebar3.crashdump
+
+# Erlang compilation artifacts
+*.beam
+*.plt
+erl_crash.dump
+
+# Editor and OS files
+*~
+*.swp
+.DS_Store
