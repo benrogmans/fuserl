@@ -1,9 +1,10 @@
 %% -*- erlang -*-
-{application,fuserl,
- [{description,"Erlang FUSE binding Erlang code."},
-  {vsn, git},
-  {modules, ["@@MODULES@@"]}, 
-  {registered,[]},
-  {applications,[kernel,stdlib]},
-  {env,[{fuserldrvprefix,auto_detect}]}
+{application, fuserl,
+ [{description, "Erlang FUSE binding."},
+  {vsn, "1.0.0"},
+  {registered, []},
+  {applications, [kernel, stdlib]},
+  {env, [{fuserldrvprefix, auto_detect}]},
+  {licenses, ["MIT"]},
+  {links, [{"GitHub", "https://github.com/benrogmans/fuserl"}]}
 ]}.

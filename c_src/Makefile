@@ -17,7 +17,7 @@ LIBS = -lfuse
 all: ../priv/$(APP).so ../priv/$(APP)drv ../priv/$(APP)_nif.so
 
 clean:
-	rm -f ../priv/$(APP).so ../priv/$(APP)drv $(SO_OBJS) $(OBJS)
+	rm -f ../priv/$(APP).so ../priv/$(APP)drv ../priv/$(APP)_nif.so $(SO_OBJS) $(NIF_OBJS) $(OBJS)
 
 ../priv/$(APP).so: $(SO_OBJS)
 	$(CC) $(LDFLAGS) $(SO_OBJS) $(LIBS) -o$@

@@ -26,4 +26,4 @@ at http://osxfuse.github.io.
 
 # Build
 
-    rebar compile
+    rebar3 compile
