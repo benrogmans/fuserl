@@ -7,10 +7,13 @@ CFLAGS=-MMD -MP -MF .$<.d -I$(ERL_TOP)/usr/include
 APP=fuserl
 CFLAGS+= -Wall -O3 -D_FILE_OFFSET_BITS=64 -DFUSE_USE_VERSION=26 -DHAVE_SETXATTR=1
 LDFLAGS+=-shared
+ifeq ($(OS),Darwin)
+LDFLAGS += -undefined dynamic_lookup
+endif
 
 SO_OBJS = fuserl.o fuserl_portability.o
 NIF_OBJS = fuserl_nif.o fuserl_portability.o
-OBJS = fuserldrv.o driver2pipe.o
+OBJS = $(APP)drv.o driver2pipe.o
 LIBS = -lfuse
 
 all: ../priv/$(APP).so ../priv/$(APP)drv ../priv/$(APP)_nif.so

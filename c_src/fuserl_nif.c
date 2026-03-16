@@ -9,7 +9,21 @@
 #include <string.h>
 #include <poll.h>
 
-#include <sys/sysmacros.h>
+#if defined(__linux__)
+#  include <sys/sysmacros.h>
+#elif defined(__APPLE__) || defined(__FreeBSD__) || defined(__OpenBSD__)
+#  ifndef makedev
+#    define makedev(maj, min)  ((dev_t)((((maj) & 0xfff) << 8) | ((min) & 0xff)))
+#  endif
+#  ifndef major
+#    define major(dev)         ((int)(((dev) >> 8) & 0xfff))
+#  endif
+#  ifndef minor
+#    define minor(dev)         ((int)((dev) & 0xff))
+#  endif
+#else
+#  include <sys/sysmacros.h>
+#endif
 #include <sys/mount.h>
 #include <sys/param.h>
 #include <sys/socket.h>
@@ -220,17 +234,9 @@ static int atom_member(ErlNifEnv* env, ERL_NIF_TERM atm, ERL_NIF_TERM list)
 
 static int get_uint64(ErlNifEnv* env, ERL_NIF_TERM arg, void* ptr)
 {
-    uint64_t val;
-    if (!enif_get_uint64(env, arg, &val)) return 0;
-    *((uint64_t*)ptr) = val;
-    return 1;
-}
-
-static int get_int64(ErlNifEnv* env, ERL_NIF_TERM arg, void* ptr)
-{
-    int64_t val;
-    if (!enif_get_int64(env, arg, &val)) return 0;
-    *((int64_t*)ptr) = val;
+    unsigned long _ul;
+    if (!enif_get_ulong(env, arg, &_ul)) return 0;
+    *((uint64_t*)ptr) = (uint64_t)_ul;
     return 1;
 }
 
@@ -241,15 +247,15 @@ static ERL_NIF_TERM make_pointer(ErlNifEnv* env, void* ptr)
 
 static int get_pointer(ErlNifEnv* env, ERL_NIF_TERM arg, void** ptr_ptr)
 {
-    uint64_t uval;
-    if (!enif_get_uint64(env, arg, &uval)) return 0;
-    *ptr_ptr = (void*)((uintptr_t) uval);
+    unsigned long _ul;
+    if (!enif_get_ulong(env, arg, &_ul)) return 0;
+    *ptr_ptr = (void*)(uintptr_t)_ul;
     return 1;
 }
 
-static ERL_NIF_TERM make_boolean(ErlNifEnv* env, int bool)
+static ERL_NIF_TERM make_boolean(ErlNifEnv* env, int value)
 {
-    return bool ? ATOM(true) : ATOM(false);
+    return value ? ATOM(true) : ATOM(false);
 }
 
 
@@ -279,9 +285,9 @@ static ERL_NIF_TERM make_uid(ErlNifEnv* env, uid_t value)
 
 static int get_uid(ErlNifEnv* env, ERL_NIF_TERM arg, uid_t* uid_ptr)
 {
-    int64_t val;
-    if (!enif_get_int64(env, arg, &val)) return 0;
-    *uid_ptr = (uid_t) val;
+    long _l;
+    if (!enif_get_long(env, arg, &_l)) return 0;
+    *uid_ptr = (uid_t)_l;
     return 1;
 }
 
@@ -295,9 +301,9 @@ static ERL_NIF_TERM make_gid(ErlNifEnv* env, gid_t value)
 
 static int get_gid(ErlNifEnv* env, ERL_NIF_TERM arg, gid_t* gid_ptr)
 {
-    int64_t val;
-    if (!enif_get_int64(env, arg, &val)) return 0;
-    *gid_ptr = (gid_t) val;
+    long _l;
+    if (!enif_get_long(env, arg, &_l)) return 0;
+    *gid_ptr = (gid_t)_l;
     return 1;
 }
 
@@ -311,9 +317,9 @@ static ERL_NIF_TERM make_pid(ErlNifEnv* env, pid_t value)
 
 static int get_pid(ErlNifEnv* env, ERL_NIF_TERM arg, pid_t* pid_ptr)
 {
-    int64_t val;
-    if (!enif_get_int64(env, arg, &val)) return 0;
-    *pid_ptr = (pid_t) val;
+    long _l;
+    if (!enif_get_long(env, arg, &_l)) return 0;
+    *pid_ptr = (pid_t)_l;
     return 1;
 }
 
@@ -355,8 +361,13 @@ static int get_fuse_file_info(ErlNifEnv* env, ERL_NIF_TERM arg,
     fi->flush = uval;
     // nonseekable (2.8)
     // flock_release (2.9)
-    if (!enif_get_uint64(env, elem[6], &fi->fh)) return 0;
-    if (!enif_get_uint64(env, elem[7], &fi->lock_owner)) return 0;
+    {
+	unsigned long _ul;
+	if (!enif_get_ulong(env, elem[6], &_ul)) return 0;
+	fi->fh = (uint64_t)_ul;
+	if (!enif_get_ulong(env, elem[7], &_ul)) return 0;
+	fi->lock_owner = (uint64_t)_ul;
+    }
     return 1;
 }
 
@@ -385,14 +396,14 @@ static ERL_NIF_TERM make_fuse_file_info(ErlNifEnv* env,
 
 static int get_dev(ErlNifEnv* env, ERL_NIF_TERM arg, dev_t* dp)
 {
-    int arity;    
+    int arity;
     const ERL_NIF_TERM* dev;
-    uint64_t a, b;
-    
+    unsigned long _a, _b;
+
     if (!enif_get_tuple(env, arg, &arity, &dev) || (arity != 2)) return 0;
-    if (!enif_get_uint64(env, dev[0], &a)) return 0;
-    if (!enif_get_uint64(env, dev[1], &b)) return 0;
-    *dp = makedev (a, b);
+    if (!enif_get_ulong(env, dev[0], &_a)) return 0;
+    if (!enif_get_ulong(env, dev[1], &_b)) return 0;
+    *dp = makedev((unsigned)_a, (unsigned)_b);
     return 1;
 }
 
@@ -406,14 +417,14 @@ static ERL_NIF_TERM make_dev(ErlNifEnv* env, dev_t d)
 static int get_timeout(ErlNifEnv* env, ERL_NIF_TERM arg, double* tmo_ptr)
 {
     double tm;
-    uint64_t tmu;
-    
+    unsigned long _ul;
+
     if (enif_get_double(env, arg, &tm)) {
 	*tmo_ptr = tm/1000.0;
 	return 1;
     }
-    else if (enif_get_uint64(env, arg, &tmu)) {
-	*tmo_ptr = tmu/1000.0;
+    else if (enif_get_ulong(env, arg, &_ul)) {
+	*tmo_ptr = (double)(uint64_t)_ul / 1000.0;
 	return 1;
     }
     return 0;
@@ -424,17 +435,19 @@ static int get_stat(ErlNifEnv* env, ERL_NIF_TERM arg, struct stat* sp)
 {
     int arity;
     const ERL_NIF_TERM* elem;
-    uint64_t m;
+    unsigned long _ul;
 
     if (!enif_get_tuple(env, arg, &arity, &elem) || (arity != 14))
 	return 0;
     if (elem[0] != ATOM(stat)) return 0;
     memset(sp, 0, sizeof(struct stat));
     if (!get_dev(env, elem[1], &sp->st_dev)) return 0;
-    if (!enif_get_uint64(env, elem[2], &sp->st_ino)) return 0;
-    if (!enif_get_uint64(env, elem[3], &m)) return 0;
-    sp->st_mode = fuserl_stat_mode_decanonicalize(m);
-    if (!enif_get_uint64(env, elem[4], &sp->st_nlink)) return 0;    
+    if (!enif_get_ulong(env, elem[2], &_ul)) return 0;
+    sp->st_ino = (typeof(sp->st_ino))_ul;
+    if (!enif_get_ulong(env, elem[3], &_ul)) return 0;
+    sp->st_mode = fuserl_stat_mode_decanonicalize((int)_ul);
+    if (!enif_get_ulong(env, elem[4], &_ul)) return 0;
+    sp->st_nlink = (typeof(sp->st_nlink))_ul;    
     if (!get_uid(env,         elem[5], &sp->st_uid)) return 0;
     if (!get_gid(env,         elem[6], &sp->st_gid)) return 0;
     if (!get_dev(env,         elem[7], &sp->st_rdev)) return 0;
@@ -475,38 +488,23 @@ static int get_statvfs(ErlNifEnv* env, ERL_NIF_TERM arg, struct statvfs* vp)
 
     if (!enif_get_tuple(env, arg, &arity, &elem) || (arity != 12))
 	return 0;
-    if (elem[0] != ATOM(statvfs)) return 0;    
+    if (elem[0] != ATOM(statvfs)) return 0;
     memset(vp, 0, sizeof(struct statvfs));
-    if (!enif_get_uint64(env, elem[1], &vp->f_bsize)) return 0;
-    if (!enif_get_uint64(env, elem[2], &vp->f_frsize)) return 0;
-    if (!enif_get_uint64(env, elem[3], &vp->f_blocks)) return 0;
-    if (!enif_get_uint64(env, elem[4], &vp->f_bfree)) return 0;
-    if (!enif_get_uint64(env, elem[5], &vp->f_bavail)) return 0;
-    if (!enif_get_uint64(env, elem[6], &vp->f_files)) return 0;
-    if (!enif_get_uint64(env, elem[7], &vp->f_ffree)) return 0;
-    if (!enif_get_uint64(env, elem[8], &vp->f_favail)) return 0;
-    if (!enif_get_uint64(env, elem[9], &vp->f_fsid)) return 0;
-    if (!enif_get_uint64(env, elem[10], &vp->f_flag)) return 0;
-    if (!enif_get_uint64(env, elem[11], &vp->f_namemax)) return 0;
+    {
+	unsigned long _ul;
+	if (!enif_get_ulong(env, elem[1], &_ul)) return 0; vp->f_bsize = (typeof(vp->f_bsize))_ul;
+	if (!enif_get_ulong(env, elem[2], &_ul)) return 0; vp->f_frsize = (typeof(vp->f_frsize))_ul;
+	if (!enif_get_ulong(env, elem[3], &_ul)) return 0; vp->f_blocks = (typeof(vp->f_blocks))_ul;
+	if (!enif_get_ulong(env, elem[4], &_ul)) return 0; vp->f_bfree = (typeof(vp->f_bfree))_ul;
+	if (!enif_get_ulong(env, elem[5], &_ul)) return 0; vp->f_bavail = (typeof(vp->f_bavail))_ul;
+	if (!enif_get_ulong(env, elem[6], &_ul)) return 0; vp->f_files = (typeof(vp->f_files))_ul;
+	if (!enif_get_ulong(env, elem[7], &_ul)) return 0; vp->f_ffree = (typeof(vp->f_ffree))_ul;
+	if (!enif_get_ulong(env, elem[8], &_ul)) return 0; vp->f_favail = (typeof(vp->f_favail))_ul;
+	if (!enif_get_ulong(env, elem[9], &_ul)) return 0; vp->f_fsid = (typeof(vp->f_fsid))_ul;
+	if (!enif_get_ulong(env, elem[10], &_ul)) return 0; vp->f_flag = (typeof(vp->f_flag))_ul;
+	if (!enif_get_ulong(env, elem[11], &_ul)) return 0; vp->f_namemax = (typeof(vp->f_namemax))_ul;
+    }
     return 1;
-}
-
-static ERL_NIF_TERM make_statvfs(ErlNifEnv* env, struct statvfs* vp)
-{
-    return enif_make_tuple(
-	env, 12,
-	ATOM(statvfs),
-	enif_make_uint64(env, vp->f_bsize),
-	enif_make_uint64(env, vp->f_frsize),
-	enif_make_uint64(env, vp->f_blocks),
-	enif_make_uint64(env, vp->f_bfree),
-	enif_make_uint64(env, vp->f_bavail),
-	enif_make_uint64(env, vp->f_files),
-	enif_make_uint64(env, vp->f_ffree),
-	enif_make_uint64(env, vp->f_favail),
-	enif_make_uint64(env, vp->f_fsid),
-	enif_make_uint64(env, vp->f_flag),
-	enif_make_uint64(env, vp->f_namemax));
 }
 
 static int get_fuse_entry_param(ErlNifEnv* env, ERL_NIF_TERM arg,
@@ -518,8 +516,13 @@ static int get_fuse_entry_param(ErlNifEnv* env, ERL_NIF_TERM arg,
     if (!enif_get_tuple(env, arg, &arity, &elem) || (arity != 6))
 	return 0;
     if (elem[0] != ATOM(fuse_entry_param)) return 0;
-    if (!enif_get_uint64(env, elem[1], &param_ptr->ino)) return 0;
-    if (!enif_get_uint64(env, elem[2], &param_ptr->generation)) return 0;
+    {
+	unsigned long _ul;
+	if (!enif_get_ulong(env, elem[1], &_ul)) return 0;
+	param_ptr->ino = (uint64_t)_ul;
+	if (!enif_get_ulong(env, elem[2], &_ul)) return 0;
+	param_ptr->generation = (uint64_t)_ul;
+    }
     if (elem[3] != ATOM(undefined)) {
 	if (!get_stat(env, elem[3], &param_ptr->attr)) return 0;
     }
@@ -1472,7 +1475,7 @@ static void fuse_op_statfs(fuse_req_t req, fuse_ino_t ino)
  * Valid replies:
  *   fuse_reply_err
  */
-static void fuse_op_setxattr(fuse_req_t req, fuse_ino_t ino, const char *name,
+static void fuse_op_setxattr_impl(fuse_req_t req, fuse_ino_t ino, const char *name,
 		  const char *value, size_t size, int flags)
 {
     fuserl_ctx_t* nif_ctx = fuse_req_userdata(req);
@@ -1489,6 +1492,20 @@ static void fuse_op_setxattr(fuse_req_t req, fuse_ino_t ino, const char *name,
 			  enif_make_int(env, flags));
     send_msg(env, &nif_ctx->pid, req, ATOM(setxattr), args);  
 }
+#if defined(__APPLE__)
+static void fuse_op_setxattr(fuse_req_t req, fuse_ino_t ino, const char *name,
+		  const char *value, size_t size, int flags, uint32_t unused)
+{
+    (void)unused;
+    fuse_op_setxattr_impl(req, ino, name, value, size, flags);
+}
+#else
+static void fuse_op_setxattr(fuse_req_t req, fuse_ino_t ino, const char *name,
+		  const char *value, size_t size, int flags)
+{
+    fuse_op_setxattr_impl(req, ino, name, value, size, flags);
+}
+#endif
 
 /**
  * Get an extended attribute
@@ -1513,7 +1530,7 @@ static void fuse_op_setxattr(fuse_req_t req, fuse_ino_t ino, const char *name,
  * @param name of the extended attribute
  * @param size maximum size of the value to send
  */
-static void fuse_op_getxattr(fuse_req_t req, fuse_ino_t ino, const char *name,
+static void fuse_op_getxattr_impl(fuse_req_t req, fuse_ino_t ino, const char *name,
 		  size_t size)
 {
     fuserl_ctx_t* nif_ctx = fuse_req_userdata(req);
@@ -1528,6 +1545,20 @@ static void fuse_op_getxattr(fuse_req_t req, fuse_ino_t ino, const char *name,
 			  enif_make_uint64(env, size));
     send_msg(env, &nif_ctx->pid, req, ATOM(getxattr), args);        
 }
+#if defined(__APPLE__)
+static void fuse_op_getxattr(fuse_req_t req, fuse_ino_t ino, const char *name,
+		  size_t size, uint32_t unused)
+{
+    (void)unused;
+    fuse_op_getxattr_impl(req, ino, name, size);
+}
+#else
+static void fuse_op_getxattr(fuse_req_t req, fuse_ino_t ino, const char *name,
+		  size_t size)
+{
+    fuse_op_getxattr_impl(req, ino, name, size);
+}
+#endif
 
 
 /**
@@ -2234,9 +2265,9 @@ static ERL_NIF_TERM nif_fuserl_reply(ErlNifEnv* env, int argc,
 	break;
     }
     case FUSE_REPLY_WRITE: {
-	uint64_t count;
-	if (!enif_get_uint64(env, elem[1], &count)) goto error;
-	fuse_reply_write(req, count);
+	unsigned long _ul;
+	if (!enif_get_ulong(env, elem[1], &_ul)) goto error;
+	fuse_reply_write(req, (uint64_t)_ul);
 	break;
     }
     case FUSE_REPLY_BUF: {
@@ -2255,10 +2286,10 @@ static ERL_NIF_TERM nif_fuserl_reply(ErlNifEnv* env, int argc,
     }
 #if HAVE_SETXATTR
     case FUSE_REPLY_XATTR: {
-	uint64_t count;
-	if (!enif_get_uint64(env, elem[1], &count)) goto error;
-	fuse_reply_xattr (req, count);
-	break;	
+	unsigned long _ul;
+	if (!enif_get_ulong(env, elem[1], &_ul)) goto error;
+	fuse_reply_xattr(req, (uint64_t)_ul);
+	break;
     }
 #endif
     case FUSE_REPLY_LOCK: {
@@ -2287,15 +2318,15 @@ static ERL_NIF_TERM nif_fuserl_reply(ErlNifEnv* env, int argc,
 	    if (!enif_get_list_length(env, elem[1], &len)) goto dir_error;
 	    else {
 		char name[len+1];
-		uint64_t u64;
+		unsigned long _ul;
 		off_t offset;
 		struct stat stbuf;
 		size_t incr;
-		
+
 		if (!enif_get_string(env, elem[1], name, len+1, ERL_NIF_LATIN1))
 		    goto dir_error;
-		if (!enif_get_uint64(env, elem[2], &u64)) goto dir_error;
-		offset = (off_t)u64;
+		if (!enif_get_ulong(env, elem[2], &_ul)) goto dir_error;
+		offset = (off_t)(uint64_t)_ul;
 		if (!get_stat(env, elem[3], &stbuf)) goto dir_error;
 		
 		incr = fuse_add_direntry (req, NULL, 0, name, NULL, 0);

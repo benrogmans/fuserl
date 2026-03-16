@@ -4,7 +4,23 @@
 #include <stdint.h>
 #include <string.h>
 #include <sys/types.h>
-#include <sys/sysmacros.h>
+
+#if defined(__linux__)
+#  include <sys/sysmacros.h>
+#elif defined(__APPLE__) || defined(__FreeBSD__) || defined(__OpenBSD__)
+/* major/minor/makedev are in sys/types.h on some versions; otherwise define locally */
+#  ifndef makedev
+#    define makedev(maj, min)  ((dev_t)((((maj) & 0xfff) << 8) | ((min) & 0xff)))
+#  endif
+#  ifndef major
+#    define major(dev)         ((int)(((dev) >> 8) & 0xfff))
+#  endif
+#  ifndef minor
+#    define minor(dev)         ((int)((dev) & 0xff))
+#  endif
+#else
+#  include <sys/sysmacros.h>
+#endif
 
 #include "fuserl_portability.h"
 
