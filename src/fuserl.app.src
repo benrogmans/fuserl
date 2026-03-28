@@ -5,6 +5,5 @@
   {registered, []},
   {applications, [kernel, stdlib]},
   {env, [{fuserldrvprefix, auto_detect}]},
-  {licenses, ["MIT"]},
-  {links, [{"GitHub", "https://github.com/benrogmans/fuserl"}]}
+  {licenses, ["BSD-3-Clause"]}
 ]}.
